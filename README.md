@@ -74,6 +74,8 @@ curl -X POST http://localhost:8000/predict \
 | `GET` | `/metrics` | Метрики качества модели |
 | `POST` | `/upload` | Загрузка CSV-датасета |
 | `GET` | `/dataset` | Информация о текущем датасете |
+| `GET` | `/dataset/info` | Размер датасета, признаки, распределение `churn` |
+| `GET` | `/dataset/preview?limit=10` | Первые N строк датасета в JSON |
 
 ## Docker
 
@@ -91,7 +93,8 @@ uv run pytest -v
 
 ```
 churn_fastapi/
-├── churn_dataset.csv          # Тренировочный датасет (2000 строк)
+├── data/
+│   └── churn_dataset.csv      # Тренировочный датасет (2000 строк)
 ├── pyproject.toml             # Метаданные и зависимости
 ├── Dockerfile
 ├── docker-compose.yml
@@ -100,12 +103,14 @@ churn_fastapi/
 │       ├── __init__.py
 │       ├── main.py            # FastAPI приложение и эндпоинты
 │       ├── schemas.py         # Pydantic-модели запросов/ответов
+│       ├── dataset.py         # Загрузка и предпросмотр датасета
 │       ├── model.py           # Обучение, сохранение, загрузка модели
 │       └── config.py          # Конфигурация и пути
 ├── models/                    # Сохранённые модели и метрики
 └── tests/
     ├── conftest.py            # Фикстуры для тестов
-    └── test_api.py            # Тесты API
+    ├── test_api.py            # Тесты API
+    └── test_dataset.py        # Тесты загрузки и просмотра датасета
 ```
 
 ## Стек

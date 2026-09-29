@@ -1,14 +1,17 @@
 from contextlib import asynccontextmanager
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Query, UploadFile
 
-from churn_fastapi.config import ALL_FEATURES, DATASET_PATH
+from churn_fastapi import dataset
+from churn_fastapi.config import ALL_FEATURES, DATASET_PATH, TARGET_COLUMN
 from churn_fastapi.model import load_metrics, load_model, predict, train
 from churn_fastapi.schemas import (
     BatchPredictionRequest,
     BatchPredictionResponse,
     ClientFeatures,
+    DatasetInfoResponse,
+    DatasetPreviewResponse,
     HealthResponse,
     MetricsResponse,
     PredictionResponse,
@@ -92,19 +95,56 @@ async def upload_dataset(file: UploadFile):
         raise HTTPException(status_code=400, detail="Требуется CSV-файл")
     content = await file.read()
     DATASET_PATH.write_bytes(content)
+    dataset.clear_cache()
     return {"message": f"Датасет {file.filename} загружен", "rows": content.count(b"\n") - 1}
 
 
-@app.get("/dataset", response_model=dict)
-def dataset_info():
-    if not DATASET_PATH.exists():
+def _load_dataset_df():
+    try:
+        return dataset.load_dataframe()
+    except dataset.DatasetNotFoundError:
         raise HTTPException(status_code=404, detail="Датасет не найден")
-    df = pd.read_csv(DATASET_PATH)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.get("/dataset/info", response_model=DatasetInfoResponse)
+def dataset_info():
+    df = _load_dataset_df()
+    return DatasetInfoResponse(
+        path=str(DATASET_PATH),
+        exists=True,
+        rows=len(df),
+        columns=len(df.columns),
+        features=dataset.get_features(),
+        target_column=TARGET_COLUMN,
+        churn_distribution=dataset.get_churn_distribution(),
+        churn_ratio=dataset.get_churn_ratio(),
+    )
+
+
+@app.get("/dataset", response_model=dict)
+def dataset_info_legacy():
+    df = _load_dataset_df()
     return {
         "rows": len(df),
         "columns": list(df.columns),
-        "churn_distribution": df["churn"].value_counts().to_dict(),
+        "churn_distribution": dataset.get_churn_distribution(),
     }
+
+
+@app.get("/dataset/preview", response_model=DatasetPreviewResponse)
+def dataset_preview(
+    limit: int = Query(10, ge=1, le=10000, description="Сколько строк вернуть"),
+):
+    _load_dataset_df()
+    rows = dataset.get_rows(limit)
+    return DatasetPreviewResponse(
+        total_rows=dataset.count_rows(),
+        returned=len(rows),
+        limit=limit,
+        rows=rows,
+    )
 
 
 def run():

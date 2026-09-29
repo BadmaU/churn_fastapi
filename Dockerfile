@@ -6,7 +6,7 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir .
 
 COPY src/ src/
-COPY churn_dataset.csv .
+COPY data/ data/
 RUN mkdir -p models
 
 EXPOSE 8000

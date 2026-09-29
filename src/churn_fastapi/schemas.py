@@ -44,3 +44,34 @@ class TrainResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
+
+
+class DatasetRowChurn(BaseModel):
+    monthly_fee: float = Field(..., description="Ежемесячная стоимость тарифа")
+    usage_hours: float = Field(..., description="Часы использования за месяц")
+    support_requests: int = Field(..., description="Обращения в техподдержку")
+    account_age_months: int = Field(..., description="Возраст аккаунта в месяцах")
+    failed_payments: int = Field(..., description="Неудачные платежи")
+    region: str = Field(..., description="Регион клиента")
+    device_type: str = Field(..., description="Тип устройства")
+    payment_method: str = Field(..., description="Способ оплаты")
+    autopay_enabled: int = Field(..., description="Автосписание: 0 или 1")
+    churn: int = Field(..., description="Целевой признак: 1 — ушёл, 0 — остался")
+
+
+class DatasetPreviewResponse(BaseModel):
+    total_rows: int = Field(..., description="Всего строк в датасете")
+    returned: int = Field(..., description="Сколько строк вернулось")
+    limit: int = Field(..., description="Запрошенный лимит строк")
+    rows: list[DatasetRowChurn]
+
+
+class DatasetInfoResponse(BaseModel):
+    path: str = Field(..., description="Путь к файлу датасета")
+    exists: bool = Field(..., description="Существует ли файл")
+    rows: int = Field(..., description="Количество строк")
+    columns: int = Field(..., description="Количество столбцов")
+    features: list[str] = Field(..., description="Список названий признаков")
+    target_column: str = Field(..., description="Название целевой переменной")
+    churn_distribution: dict[str, int] = Field(..., description="Распределение churn по классам")
+    churn_ratio: float = Field(..., description="Доля ушедших клиентов (churn = 1)")
