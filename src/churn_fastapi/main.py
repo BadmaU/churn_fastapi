@@ -5,7 +5,14 @@ from fastapi import FastAPI, HTTPException, Query, UploadFile
 
 from churn_fastapi import dataset, preprocessing
 from churn_fastapi.config import ALL_FEATURES, DATASET_PATH, TARGET_COLUMN
-from churn_fastapi.model import load_metrics, load_model, predict, train
+from churn_fastapi.model import (
+    MODEL_NAME,
+    InvalidDatasetError,
+    load_metrics,
+    load_model,
+    predict,
+    train,
+)
 from churn_fastapi.schemas import (
     BatchPredictionRequest,
     BatchPredictionResponse,
@@ -14,9 +21,9 @@ from churn_fastapi.schemas import (
     DatasetPreviewResponse,
     HealthResponse,
     MetricsResponse,
+    ModelTrainResponse,
     PredictionResponse,
     SplitInfoResponse,
-    TrainResponse,
 )
 
 
@@ -47,13 +54,29 @@ def health():
     )
 
 
-@app.post("/train", response_model=TrainResponse)
-def train_model():
+@app.post("/model/train", response_model=ModelTrainResponse)
+def train_churn_model_endpoint():
     try:
         metrics = train()
     except FileNotFoundError:
-        raise HTTPException(status_code=400, detail="Файл датасета не найден")
-    return TrainResponse(message="Модель обучена успешно", metrics=MetricsResponse(**metrics))
+        raise HTTPException(status_code=404, detail="Файл датасета не найден")
+    except InvalidDatasetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Не удалось обучить модель: {e}")
+    return ModelTrainResponse(
+        message="Модель обучена успешно",
+        model=MODEL_NAME,
+        accuracy=metrics["accuracy"],
+        f1=metrics["f1"],
+        train_size=metrics["train_size"],
+        test_size=metrics["test_size"],
+    )
+
+
+@app.post("/train", response_model=ModelTrainResponse)
+def train_model():
+    return train_churn_model_endpoint()
 
 
 @app.post("/predict", response_model=PredictionResponse)

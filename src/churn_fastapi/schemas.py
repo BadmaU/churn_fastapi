@@ -36,9 +36,13 @@ class MetricsResponse(BaseModel):
     test_size: int
 
 
-class TrainResponse(BaseModel):
+class ModelTrainResponse(BaseModel):
     message: str
-    metrics: MetricsResponse
+    model: str = Field(..., description="Название обученной модели")
+    accuracy: float = Field(..., description="Accuracy на тестовой выборке")
+    f1: float = Field(..., description="F1 на тестовой выборке")
+    train_size: int = Field(..., description="Размер train выборки")
+    test_size: int = Field(..., description="Размер test выборки")
 
 
 class HealthResponse(BaseModel):
