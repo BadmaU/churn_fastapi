@@ -76,6 +76,7 @@ curl -X POST http://localhost:8000/predict \
 | `GET` | `/dataset` | Информация о текущем датасете |
 | `GET` | `/dataset/info` | Размер датасета, признаки, распределение `churn` |
 | `GET` | `/dataset/preview?limit=10` | Первые N строк датасета в JSON |
+| `GET` | `/dataset/split-info` | Размеры train/test и распределение `churn` в выборках |
 
 ## Docker
 
@@ -104,14 +105,26 @@ churn_fastapi/
 │       ├── main.py            # FastAPI приложение и эндпоинты
 │       ├── schemas.py         # Pydantic-модели запросов/ответов
 │       ├── dataset.py         # Загрузка и предпросмотр датасета
+│       ├── preprocessing.py   # X/y, пропуски, числовые/категориальные, train/test
 │       ├── model.py           # Обучение, сохранение, загрузка модели
 │       └── config.py          # Конфигурация и пути
 ├── models/                    # Сохранённые модели и метрики
 └── tests/
     ├── conftest.py            # Фикстуры для тестов
     ├── test_api.py            # Тесты API
-    └── test_dataset.py        # Тесты загрузки и просмотра датасета
+    ├── test_dataset.py        # Тесты загрузки и просмотра датасета
+    └── test_preprocessing.py  # Тесты предобработки и разбиения
 ```
+
+## Признаки по типам
+
+Числовые и категориальные признаки заданы явно в `src/churn_fastapi/config.py`
+(`NUMERIC_FEATURES`, `CATEGORICAL_FEATURES`) — эндпоинт `GET /dataset/split-info`
+покажет, что попало в каждую группу.
+
+Пропуски обрабатываются внутри пайплайна (`SimpleImputer`): числовые — медианой,
+категориальные — модой. Импутеры обучаются **только на train**, поэтому
+тестовая выборка не участвует в подборе значений заполнения.
 
 ## Стек
 

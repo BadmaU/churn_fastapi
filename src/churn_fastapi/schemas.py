@@ -75,3 +75,25 @@ class DatasetInfoResponse(BaseModel):
     target_column: str = Field(..., description="Название целевой переменной")
     churn_distribution: dict[str, int] = Field(..., description="Распределение churn по классам")
     churn_ratio: float = Field(..., description="Доля ушедших клиентов (churn = 1)")
+
+
+class SplitInfoResponse(BaseModel):
+    test_size: float = Field(..., description="Доля тестовой выборки")
+    random_state: int = Field(..., description="Seed для воспроизводимости")
+    stratify: bool = Field(..., description="Стратификация по churn")
+    total_rows: int = Field(..., description="Всего строк в датасете")
+    train_size: int = Field(..., description="Строк в train")
+    test_rows: int = Field(..., description="Строк в test")
+    numeric_features: list[str] = Field(..., description="Числовые признаки")
+    categorical_features: list[str] = Field(..., description="Категориальные признаки")
+    features: list[str] = Field(..., description="Все признаки матрицы X")
+    target_column: str = Field(..., description="Целевая переменная")
+    missing_values: dict[str, int] = Field(..., description="Пропуски по столбцам")
+    missing_values_total: int = Field(..., description="Всего пропусков")
+    churn_distribution: dict[str, dict[str, int]] = Field(
+        ..., description="Распределение churn для full / train / test"
+    )
+    churn_ratio: dict[str, float] = Field(..., description="Доля churn = 1 в выборках")
+    stratified_consistent: bool = Field(
+        ..., description="Распределение churn в train и test примерно одинаковое"
+    )

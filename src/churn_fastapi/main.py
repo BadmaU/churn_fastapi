@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, UploadFile
 
-from churn_fastapi import dataset
+from churn_fastapi import dataset, preprocessing
 from churn_fastapi.config import ALL_FEATURES, DATASET_PATH, TARGET_COLUMN
 from churn_fastapi.model import load_metrics, load_model, predict, train
 from churn_fastapi.schemas import (
@@ -15,6 +15,7 @@ from churn_fastapi.schemas import (
     HealthResponse,
     MetricsResponse,
     PredictionResponse,
+    SplitInfoResponse,
     TrainResponse,
 )
 
@@ -144,6 +145,32 @@ def dataset_preview(
         returned=len(rows),
         limit=limit,
         rows=rows,
+    )
+
+
+@app.get("/dataset/split-info", response_model=SplitInfoResponse)
+def dataset_split_info(
+    test_size: float = Query(
+        preprocessing.DEFAULT_TEST_SIZE, gt=0, lt=1, description="Доля тестовой выборки"
+    ),
+    random_state: int = Query(preprocessing.DEFAULT_RANDOM_STATE, description="Seed"),
+    stratify: bool = Query(True, description="Стратифицировать по churn"),
+):
+    df = _load_dataset_df()
+    try:
+        split = preprocessing.make_split(
+            df, test_size=test_size, random_state=random_state, stratify=stratify
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return SplitInfoResponse(
+        **preprocessing.summarize_split(
+            split,
+            df,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=stratify,
+        )
     )
 
 
