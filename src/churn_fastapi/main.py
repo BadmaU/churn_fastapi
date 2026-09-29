@@ -1,16 +1,27 @@
+import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, UploadFile
 
 from churn_fastapi import dataset, preprocessing
-from churn_fastapi.config import ALL_FEATURES, DATASET_PATH, TARGET_COLUMN
+from churn_fastapi.config import (
+    ALL_FEATURES,
+    DATASET_PATH,
+    TARGET_COLUMN,
+)
 from churn_fastapi.model import (
     MODEL_NAME,
     InvalidDatasetError,
+    get_metadata,
+    get_model_paths,
+    is_loaded_from_disk,
+    load_churn_model,
     load_metrics,
     load_model,
     predict,
+    reset_model,
     train,
 )
 from churn_fastapi.schemas import (
@@ -21,16 +32,23 @@ from churn_fastapi.schemas import (
     DatasetPreviewResponse,
     HealthResponse,
     MetricsResponse,
+    ModelStatusResponse,
     ModelTrainResponse,
     PredictionResponse,
     SplitInfoResponse,
 )
 
+logger = logging.getLogger("uvicorn.error.churn_fastapi.api")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    load_model()
+    if load_churn_model() is not None:
+        logger.info("Приложение стартовало с моделью, загруженной с диска")
+    else:
+        logger.info("Сохранённая модель не найдена — обучите через POST /model/train")
     yield
+    reset_model()
 
 
 app = FastAPI(
@@ -77,6 +95,42 @@ def train_churn_model_endpoint():
 @app.post("/train", response_model=ModelTrainResponse)
 def train_model():
     return train_churn_model_endpoint()
+
+
+@app.get("/model/status", response_model=ModelStatusResponse)
+def model_status():
+    pipeline = load_model()
+    metadata = get_metadata()
+    model_path, metadata_path = get_model_paths()
+    trained_at = None
+    age_seconds = None
+    if metadata and metadata.get("trained_at"):
+        try:
+            trained_dt = datetime.fromisoformat(metadata["trained_at"])
+            trained_at = trained_dt.isoformat()
+            age_seconds = round(
+                (datetime.now(timezone.utc) - trained_dt).total_seconds(), 2
+            )
+        except ValueError:
+            logger.warning("Не удалось разобрать trained_at: %s", metadata.get("trained_at"))
+
+    raw_metrics = metadata.get("metrics") if metadata else None
+    metrics = MetricsResponse(**raw_metrics) if raw_metrics else None
+
+    return ModelStatusResponse(
+        trained=pipeline is not None,
+        model=metadata.get("model") if metadata else None,
+        trained_at=trained_at,
+        age_seconds=age_seconds,
+        metrics=metrics,
+        model_path=str(model_path),
+        metadata_path=str(metadata_path),
+        model_file_exists=model_path.exists(),
+        loaded_from_disk=is_loaded_from_disk(),
+        features=list(ALL_FEATURES),
+        dataset_rows=metadata.get("dataset_rows") if metadata else None,
+        sklearn_version=metadata.get("sklearn_version") if metadata else None,
+    )
 
 
 @app.post("/predict", response_model=PredictionResponse)

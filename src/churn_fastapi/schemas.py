@@ -45,6 +45,21 @@ class ModelTrainResponse(BaseModel):
     test_size: int = Field(..., description="Размер test выборки")
 
 
+class ModelStatusResponse(BaseModel):
+    trained: bool = Field(..., description="Обучена ли модель")
+    model: str | None = Field(..., description="Название модели")
+    trained_at: str | None = Field(..., description="Когда обучена последний раз (UTC, ISO 8601)")
+    age_seconds: float | None = Field(..., description="Сколько секунд прошло с обучения")
+    metrics: MetricsResponse | None = Field(..., description="Метрики на тестовой выборке")
+    model_path: str = Field(..., description="Путь к файлу модели")
+    metadata_path: str = Field(..., description="Путь к файлу метаданных")
+    model_file_exists: bool = Field(..., description="Лежит ли файл модели на диске")
+    loaded_from_disk: bool = Field(..., description="Модель загружена с диска, а не обучена в RAM")
+    features: list[str] = Field(..., description="Признаки, на которых обучена модель")
+    dataset_rows: int | None = Field(..., description="Строк в датасете на момент обучения")
+    sklearn_version: str | None = Field(..., description="Версия scikit-learn при обучении")
+
+
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool

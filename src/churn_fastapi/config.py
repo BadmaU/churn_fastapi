@@ -5,8 +5,8 @@ DATA_DIR = BASE_DIR / "data"
 MODEL_DIR = BASE_DIR / "models"
 
 DATASET_PATH = DATA_DIR / "churn_dataset.csv"
-MODEL_PATH = MODEL_DIR / "model.pkl"
-METRICS_PATH = MODEL_DIR / "metrics.json"
+MODEL_PATH = MODEL_DIR / "churn_model.joblib"
+MODEL_METADATA_PATH = MODEL_DIR / "model_metadata.json"
 
 NUMERIC_FEATURES = [
     "monthly_fee",

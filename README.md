@@ -70,6 +70,7 @@ curl -X POST http://localhost:8000/predict \
 | `GET` | `/health` | Проверка здоровья сервиса |
 | `POST` | `/model/train` | Обучить LogisticRegression, вернуть accuracy и f1 |
 | `POST` | `/train` | Алиас `/model/train` |
+| `GET` | `/model/status` | Обучена ли модель, когда обучена, метрики |
 | `POST` | `/predict` | Предсказание для одного клиента |
 | `POST` | `/predict/batch` | Пакетное предсказание |
 | `GET` | `/metrics` | Метрики качества модели |
@@ -109,7 +110,7 @@ churn_fastapi/
 │       ├── preprocessing.py   # X/y, пропуски, числовые/категориальные, train/test
 │       ├── model.py           # train_churn_model, сохранение и загрузка модели
 │       └── config.py          # Конфигурация и пути
-├── models/                    # Сохранённые модели и метрики
+├── models/                    # churn_model.joblib + model_metadata.json (в gitignore)
 └── tests/
     ├── conftest.py            # Фикстуры для тестов
     ├── test_api.py            # Тесты API
@@ -117,6 +118,26 @@ churn_fastapi/
     ├── test_preprocessing.py  # Тесты предобработки и разбиения
     └── test_model.py          # Тесты обучения модели
 ```
+
+## Хранение модели
+
+Обученная модель не теряется при перезапуске сервиса:
+
+| Файл | Содержимое |
+|---|---|
+| `models/churn_model.joblib` | сам `Pipeline` через `joblib.dump` |
+| `models/model_metadata.json` | `trained_at`, метрики, список признаков, версия sklearn, размер датасета |
+
+- `save_churn_model(pipeline, metadata)` — пишет оба файла и обновляет модель в памяти
+- `load_churn_model()` — читает модель с диска в глобальную переменную модуля `model.py`
+- `reset_model()` — сбрасывает состояние (вызывается в `lifespan` при остановке)
+
+`lifespan` при старте вызывает `load_churn_model()`, поэтому после перезапуска
+сервис сразу предсказывает без повторного обучения. Повреждённый файл модели
+не роняет приложение — в лог пишется warning, сервис стартует без модели.
+
+Проверить: `GET /model/status` → поле `loaded_from_disk: true` означает, что
+модель взята с диска, а не обучена в текущем процессе.
 
 ## Модель
 
