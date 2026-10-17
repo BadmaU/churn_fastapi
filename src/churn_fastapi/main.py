@@ -30,11 +30,13 @@ from churn_fastapi.schemas import (
     ClientFeatures,
     DatasetInfoResponse,
     DatasetPreviewResponse,
+    FeatureVectorChurn,
     HealthResponse,
     MetricsResponse,
     ModelStatusResponse,
     ModelTrainResponse,
     PredictionResponse,
+    PredictionResponseChurn,
     SplitInfoResponse,
 )
 
@@ -56,6 +58,12 @@ app = FastAPI(
     description="Сервис для предсказания оттока клиентов",
     version="0.1.0",
     lifespan=lifespan,
+    openapi_tags=[
+        {
+            "name": "Prediction",
+            "description": "Предсказание оттока (churn) клиентов. Эндпоинт /predict принимает один объект FeatureVectorChurn или список таких объектов.",
+        },
+    ],
 )
 
 
@@ -133,15 +141,41 @@ def model_status():
     )
 
 
-@app.post("/predict", response_model=PredictionResponse)
-def predict_single(client: ClientFeatures):
-    df = pd.DataFrame([client.model_dump()])
+@app.post(
+    "/predict",
+    response_model=PredictionResponseChurn | list[PredictionResponseChurn],
+    responses={
+        400: {"description": "Модель не обучена или некорректный запрос"},
+    },
+    tags=["Prediction"],
+)
+def predict_endpoint(payload: FeatureVectorChurn | list[FeatureVectorChurn]):
+    """
+    Предсказание оттока клиентов.
+    """
+    if isinstance(payload, list):
+        df = pd.DataFrame([c.model_dump() for c in payload])
+        df = df[ALL_FEATURES]
+        try:
+            preds, probas = predict(df)
+        except RuntimeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return [
+            PredictionResponseChurn(churn=p, probability=round(pr, 4))
+            for p, pr in zip(preds, probas)
+        ]
+    df = pd.DataFrame([payload.model_dump()])
     df = df[ALL_FEATURES]
     try:
         preds, probas = predict(df)
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return PredictionResponse(churn=preds[0], probability=round(probas[0], 4))
+    return PredictionResponseChurn(churn=preds[0], probability=round(probas[0], 4))
+
+
+@app.post("/predict", response_model=PredictionResponseChurn, deprecated=True)
+def predict_single_legacy(client: ClientFeatures):
+    return predict_endpoint(client)
 
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
@@ -153,7 +187,7 @@ def predict_batch(request: BatchPredictionRequest):
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     results = [
-        PredictionResponse(churn=p, probability=round(pr, 4))
+        PredictionResponseChurn(churn=p, probability=round(pr, 4))
         for p, pr in zip(preds, probas)
     ]
     return BatchPredictionResponse(predictions=results)

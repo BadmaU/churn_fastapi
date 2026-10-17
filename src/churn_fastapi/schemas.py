@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 
-class ClientFeatures(BaseModel):
+class FeatureVectorChurn(BaseModel):
     monthly_fee: float = Field(..., ge=0, description="Ежемесячная стоимость тарифа")
     usage_hours: float = Field(..., ge=0, description="Часы использования за месяц")
     support_requests: int = Field(..., ge=0, description="Обращения в техподдержку")
@@ -13,17 +13,25 @@ class ClientFeatures(BaseModel):
     autopay_enabled: int = Field(..., ge=0, le=1, description="Автосписание: 0 или 1")
 
 
+# Для обратной совместимости
+ClientFeatures = FeatureVectorChurn
+
+
 class PredictionResponse(BaseModel):
     churn: int = Field(..., description="Предсказание: 1 — ушёл, 0 — остался")
     probability: float = Field(..., description="Вероятность оттока")
 
 
+class PredictionResponseChurn(PredictionResponse):
+    pass
+
+
 class BatchPredictionRequest(BaseModel):
-    clients: list[ClientFeatures]
+    clients: list[FeatureVectorChurn]
 
 
 class BatchPredictionResponse(BaseModel):
-    predictions: list[PredictionResponse]
+    predictions: list[PredictionResponseChurn]
 
 
 class MetricsResponse(BaseModel):
