@@ -45,6 +45,16 @@ uv run churn-fastapi
 curl -X POST http://localhost:8000/model/train
 ```
 
+Можно выбрать тип модели и гиперпараметры:
+
+```bash
+curl -X POST http://localhost:8000/model/train \
+  -H "Content-Type: application/json" \
+  -d '{"model_type": "random_forest", "hyperparameters": {"n_estimators": 100, "max_depth": 8}}'
+```
+
+`model_type`: `logreg` (по умолчанию) или `random_forest`.
+
 ### Получение предсказания
 
 ```bash
@@ -68,9 +78,9 @@ curl -X POST http://localhost:8000/predict \
 | Метод | Путь | Описание |
 |---|---|---|
 | `GET` | `/health` | Проверка здоровья сервиса |
-| `POST` | `/model/train` | Обучить LogisticRegression, вернуть accuracy и f1 |
+| `POST` | `/model/train` | Обучить модель (`logreg` или `random_forest`), вернуть accuracy и f1 |
 | `POST` | `/train` | Алиас `/model/train` |
-| `GET` | `/model/status` | Обучена ли модель, когда обучена, метрики |
+| `GET` | `/model/status` | Обучена ли модель, тип и гиперпараметры, когда обучена, метрики |
 | `POST` | `/predict` | Предсказание для одного клиента |
 | `POST` | `/predict/batch` | Пакетное предсказание |
 | `GET` | `/metrics` | Метрики качества модели |

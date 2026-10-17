@@ -12,7 +12,6 @@ from churn_fastapi.config import (
     TARGET_COLUMN,
 )
 from churn_fastapi.model import (
-    MODEL_NAME,
     InvalidDatasetError,
     get_metadata,
     get_model_paths,
@@ -38,6 +37,7 @@ from churn_fastapi.schemas import (
     PredictionResponse,
     PredictionResponseChurn,
     SplitInfoResponse,
+    TrainingConfigChurn,
 )
 
 logger = logging.getLogger("uvicorn.error.churn_fastapi.api")
@@ -81,18 +81,21 @@ def health():
 
 
 @app.post("/model/train", response_model=ModelTrainResponse)
-def train_churn_model_endpoint():
+def train_churn_model_endpoint(config: TrainingConfigChurn | None = None):
     try:
-        metrics = train()
+        metadata = train(config=config)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Файл датасета не найден")
     except InvalidDatasetError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except ValueError as e:
+    except (ValueError, TypeError) as e:
         raise HTTPException(status_code=400, detail=f"Не удалось обучить модель: {e}")
+    metrics = metadata["metrics"]
     return ModelTrainResponse(
         message="Модель обучена успешно",
-        model=MODEL_NAME,
+        model=metadata["model"],
+        model_type=metadata["model_type"],
+        hyperparameters=metadata["hyperparameters"],
         accuracy=metrics["accuracy"],
         f1=metrics["f1"],
         train_size=metrics["train_size"],
@@ -101,8 +104,8 @@ def train_churn_model_endpoint():
 
 
 @app.post("/train", response_model=ModelTrainResponse)
-def train_model():
-    return train_churn_model_endpoint()
+def train_model(config: TrainingConfigChurn | None = None):
+    return train_churn_model_endpoint(config)
 
 
 @app.get("/model/status", response_model=ModelStatusResponse)
@@ -128,6 +131,8 @@ def model_status():
     return ModelStatusResponse(
         trained=pipeline is not None,
         model=metadata.get("model") if metadata else None,
+        model_type=metadata.get("model_type") if metadata else None,
+        hyperparameters=metadata.get("hyperparameters") if metadata else None,
         trained_at=trained_at,
         age_seconds=age_seconds,
         metrics=metrics,

@@ -1,4 +1,15 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
+
+
+class TrainingConfigChurn(BaseModel):
+    model_type: str = Field(
+        "logreg", description="Тип модели: logreg или random_forest"
+    )
+    hyperparameters: dict[str, Any] = Field(
+        default_factory=dict, description="Гиперпараметры модели"
+    )
 
 
 class FeatureVectorChurn(BaseModel):
@@ -47,6 +58,10 @@ class MetricsResponse(BaseModel):
 class ModelTrainResponse(BaseModel):
     message: str
     model: str = Field(..., description="Название обученной модели")
+    model_type: str = Field(..., description="Тип модели: logreg или random_forest")
+    hyperparameters: dict[str, Any] = Field(
+        ..., description="Гиперпараметры, с которыми обучена модель"
+    )
     accuracy: float = Field(..., description="Accuracy на тестовой выборке")
     f1: float = Field(..., description="F1 на тестовой выборке")
     train_size: int = Field(..., description="Размер train выборки")
@@ -56,6 +71,12 @@ class ModelTrainResponse(BaseModel):
 class ModelStatusResponse(BaseModel):
     trained: bool = Field(..., description="Обучена ли модель")
     model: str | None = Field(..., description="Название модели")
+    model_type: str | None = Field(
+        None, description="Тип модели: logreg или random_forest"
+    )
+    hyperparameters: dict[str, Any] | None = Field(
+        None, description="Основные гиперпараметры модели"
+    )
     trained_at: str | None = Field(..., description="Когда обучена последний раз (UTC, ISO 8601)")
     age_seconds: float | None = Field(..., description="Сколько секунд прошло с обучения")
     metrics: MetricsResponse | None = Field(..., description="Метрики на тестовой выборке")
