@@ -12,6 +12,25 @@ class TrainingConfigChurn(BaseModel):
     )
 
 
+class FeatureSpecChurn(BaseModel):
+    name: str = Field(..., description="Название признака churn")
+    type: str = Field(..., description="Ожидаемый тип значения: number, integer или string")
+    group: str = Field(..., description="Группа признака: numeric или categorical")
+    required: bool = Field(..., description="Обязательно ли поле в запросе")
+    description: str | None = Field(None, description="Описание признака")
+    minimum: float | None = Field(None, description="Минимально допустимое значение")
+    maximum: float | None = Field(None, description="Максимально допустимое значение")
+
+
+class ModelSchemaResponse(BaseModel):
+    features: list[FeatureSpecChurn] = Field(
+        ..., description="Признаки churn в том порядке, в котором их ждёт модель"
+    )
+    numeric_features: list[str] = Field(..., description="Числовые признаки")
+    categorical_features: list[str] = Field(..., description="Категориальные признаки")
+    target_column: str = Field(..., description="Целевой признак")
+
+
 class FeatureVectorChurn(BaseModel):
     monthly_fee: float = Field(..., ge=0, description="Ежемесячная стоимость тарифа")
     usage_hours: float = Field(..., ge=0, description="Часы использования за месяц")

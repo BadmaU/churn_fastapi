@@ -55,6 +55,14 @@ curl -X POST http://localhost:8000/model/train \
 
 `model_type`: `logreg` (по умолчанию) или `random_forest`.
 
+### Схема признаков
+
+```bash
+curl http://localhost:8000/model/schema
+```
+
+Возвращает список признаков `churn` в порядке обучения, ожидаемые типы, группу (`numeric`/`categorical`) и ограничения.
+
 ### Получение предсказания
 
 ```bash
@@ -81,6 +89,7 @@ curl -X POST http://localhost:8000/predict \
 | `POST` | `/model/train` | Обучить модель (`logreg` или `random_forest`), вернуть accuracy и f1 |
 | `POST` | `/train` | Алиас `/model/train` |
 | `GET` | `/model/status` | Обучена ли модель, тип и гиперпараметры, когда обучена, метрики |
+| `GET` | `/model/schema` | Список признаков churn, типы, группы и ограничения |
 | `POST` | `/predict` | Предсказание для одного клиента |
 | `POST` | `/predict/batch` | Пакетное предсказание |
 | `GET` | `/metrics` | Метрики качества модели |
@@ -192,12 +201,14 @@ SimpleImputer + OneHotEncoder для категориальных) → клас�
 ## Признаки по типам
 
 Числовые и категориальные признаки заданы явно в `src/churn_fastapi/config.py`
-(`NUMERIC_FEATURES`, `CATEGORICAL_FEATURES`) — эндпоинт `GET /dataset/split-info`
-покажет, что попало в каждую группу.
+(`NUMERIC_FEATURES`, `CATEGORICAL_FEATURES`) — эндпоинты `GET /model/schema` и
+`GET /dataset/split-info` показывают группы и порядок признаков.
 
-Пропуски обрабатываются внутри пайплайна (`SimpleImputer`): числовые — медианой,
-категориальные — модой. Импутеры обучаются **только на train**, поэтому
-тестовая выборка не участвует в подборе значений заполнения.
+Предобработка объединена в единый `Pipeline`: `ColumnTransformer` применяет
+`StandardScaler` к числовым и `OneHotEncoder` к категориальным признакам
+(с `SimpleImputer` внутри пайплайна). Модель и вся цепочка предобработки
+сохраняются/загружаются одним объектом через `joblib`, а подготовка
+`FeatureVectorChurn` для предсказания использует `ALL_FEATURES` в порядке обучения.
 
 ## Стек
 

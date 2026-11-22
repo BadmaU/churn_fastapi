@@ -2,7 +2,6 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, UploadFile
 
 from churn_fastapi import dataset, preprocessing
@@ -29,12 +28,13 @@ from churn_fastapi.schemas import (
     ClientFeatures,
     DatasetInfoResponse,
     DatasetPreviewResponse,
+    FeatureSpecChurn,
     FeatureVectorChurn,
     HealthResponse,
     MetricsResponse,
+    ModelSchemaResponse,
     ModelStatusResponse,
     ModelTrainResponse,
-    PredictionResponse,
     PredictionResponseChurn,
     SplitInfoResponse,
     TrainingConfigChurn,
@@ -61,7 +61,11 @@ app = FastAPI(
     openapi_tags=[
         {
             "name": "Prediction",
-            "description": "Предсказание оттока (churn) клиентов. Эндпоинт /predict принимает один объект FeatureVectorChurn или список таких объектов.",
+            "description": (
+                "Предсказание оттока (churn) клиентов. "
+                "Эндпоинт /predict принимает один объект FeatureVectorChurn "
+                "или список таких объектов."
+            ),
         },
     ],
 )
@@ -146,6 +150,33 @@ def model_status():
     )
 
 
+@app.get("/model/schema", response_model=ModelSchemaResponse)
+def model_schema():
+    json_schema = FeatureVectorChurn.model_json_schema()
+    required = set(json_schema.get("required", []))
+    numeric, categorical = preprocessing.get_column_groups()
+    features = []
+    for name in ALL_FEATURES:
+        prop = json_schema["properties"][name]
+        features.append(
+            FeatureSpecChurn(
+                name=name,
+                type=prop["type"],
+                group="numeric" if name in numeric else "categorical",
+                required=name in required,
+                description=prop.get("description"),
+                minimum=prop.get("minimum"),
+                maximum=prop.get("maximum"),
+            )
+        )
+    return ModelSchemaResponse(
+        features=features,
+        numeric_features=numeric,
+        categorical_features=categorical,
+        target_column=TARGET_COLUMN,
+    )
+
+
 @app.post(
     "/predict",
     response_model=PredictionResponseChurn | list[PredictionResponseChurn],
@@ -159,8 +190,7 @@ def predict_endpoint(payload: FeatureVectorChurn | list[FeatureVectorChurn]):
     Предсказание оттока клиентов.
     """
     if isinstance(payload, list):
-        df = pd.DataFrame([c.model_dump() for c in payload])
-        df = df[ALL_FEATURES]
+        df = preprocessing.build_feature_matrix([c.model_dump() for c in payload])
         try:
             preds, probas = predict(df)
         except RuntimeError as e:
@@ -169,8 +199,7 @@ def predict_endpoint(payload: FeatureVectorChurn | list[FeatureVectorChurn]):
             PredictionResponseChurn(churn=p, probability=round(pr, 4))
             for p, pr in zip(preds, probas)
         ]
-    df = pd.DataFrame([payload.model_dump()])
-    df = df[ALL_FEATURES]
+    df = preprocessing.build_feature_matrix(payload.model_dump())
     try:
         preds, probas = predict(df)
     except RuntimeError as e:
@@ -185,8 +214,7 @@ def predict_single_legacy(client: ClientFeatures):
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
 def predict_batch(request: BatchPredictionRequest):
-    df = pd.DataFrame([c.model_dump() for c in request.clients])
-    df = df[ALL_FEATURES]
+    df = preprocessing.build_feature_matrix([c.model_dump() for c in request.clients])
     try:
         preds, probas = predict(df)
     except RuntimeError as e:

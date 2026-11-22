@@ -75,7 +75,10 @@ class TestSaveAndLoad:
         import pandas as pd
 
         model.reset_model()
-        assert model.load_model() is not None
+        pipeline = model.load_model()
+        assert isinstance(pipeline, Pipeline)
+        assert "preprocessor" in pipeline.named_steps
+        assert "classifier" in pipeline.named_steps
         df = pd.DataFrame([sample_client])[ALL_FEATURES]
         preds, probas = model.predict(df)
         assert preds[0] in (0, 1)

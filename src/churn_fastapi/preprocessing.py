@@ -53,12 +53,21 @@ def describe_missing(df: pd.DataFrame) -> dict[str, int]:
 
 
 def split_xy(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
-    numeric, categorical = get_column_groups()
-    features = numeric + categorical
-    X = df[features].copy()
+    get_column_groups()  # валидация групп признаков
+    X = df[ALL_FEATURES].copy()
     y = df[TARGET_COLUMN].copy()
     y.name = TARGET_COLUMN
     return X, y
+
+
+def build_feature_matrix(records: dict | list[dict]) -> pd.DataFrame:
+    if isinstance(records, dict):
+        records = [records]
+    df = pd.DataFrame(records)
+    missing = [c for c in ALL_FEATURES if c not in df.columns]
+    if missing:
+        raise ValueError(f"Отсутствуют обязательные признаки: {missing}")
+    return df[ALL_FEATURES].copy()
 
 
 def make_split(

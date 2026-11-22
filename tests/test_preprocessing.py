@@ -106,6 +106,25 @@ class _DummyClassifier:
         return np.tile([0.8, 0.2], (len(X), 1))
 
 
+class TestBuildFeatureMatrix:
+    def test_single_record_follows_training_order(self, sample_client):
+        matrix = preprocessing.build_feature_matrix(sample_client)
+        assert list(matrix.columns) == ALL_FEATURES
+        assert len(matrix) == 1
+
+    def test_records_drop_extra_columns(self, sample_client):
+        records = [{**sample_client, "extra": 1}, sample_client]
+        matrix = preprocessing.build_feature_matrix(records)
+        assert list(matrix.columns) == ALL_FEATURES
+        assert len(matrix) == 2
+
+    def test_missing_feature_raises(self, sample_client):
+        broken = dict(sample_client)
+        del broken["region"]
+        with pytest.raises(ValueError, match="Отсутствуют обязательные признаки"):
+            preprocessing.build_feature_matrix(broken)
+
+
 class TestSplitInfoEndpoint:
     def test_defaults(self, client):
         resp = client.get("/dataset/split-info")
