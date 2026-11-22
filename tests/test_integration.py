@@ -1,16 +1,5 @@
-import pytest
-
 from churn_fastapi import dataset, model, preprocessing
 from churn_fastapi.config import ALL_FEATURES, TARGET_COLUMN
-
-
-@pytest.fixture
-def isolated_model(tmp_path, monkeypatch):
-    monkeypatch.setattr(model, "MODEL_PATH", tmp_path / "churn_model.joblib")
-    monkeypatch.setattr(model, "MODEL_METADATA_PATH", tmp_path / "model_metadata.json")
-    model.reset_model()
-    yield
-    model.reset_model()
 
 
 class TestSyntheticPipelineWithoutFastAPI:

@@ -93,6 +93,12 @@ def train_churn_model(
 
     classifier = build_classifier(config)
     split = make_split(df, test_size=test_size, random_state=random_state, stratify=stratify)
+    logger.info(
+        "Обучение модели %s: train=%d, test=%d",
+        classifier.__class__.__name__,
+        split.train_size,
+        split.test_size,
+    )
     pipeline = build_pipeline(classifier)
     pipeline.fit(split.X_train, split.y_train)
 
@@ -108,6 +114,12 @@ def train_churn_model(
         "train_size": split.train_size,
         "test_size": split.test_size,
     }
+    logger.info(
+        "Обучение завершено: accuracy=%.4f, f1=%.4f, roc_auc=%.4f",
+        metrics["accuracy"],
+        metrics["f1"],
+        metrics["roc_auc"],
+    )
 
     return TrainedChurnModel(
         pipeline=pipeline,

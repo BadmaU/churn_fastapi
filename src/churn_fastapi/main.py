@@ -94,9 +94,14 @@ def _error_response(
     return JSONResponse(status_code=status_code, content=payload.model_dump(mode="json"))
 
 
+def _log_error(request: Request, code: str, message: str) -> None:
+    logger.warning("Ошибка %s: %s %s — %s", code, request.method, request.url.path, message)
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     code = getattr(exc, "code", None) or code_for_status(exc.status_code)
+    _log_error(request, code, str(exc.detail))
     return _error_response(
         code=code,
         message=str(exc.detail),
@@ -120,6 +125,7 @@ async def validation_exception_handler(
             }
         )
     legacy_detail = "; ".join(f"{item['field']}: {item['message']}" for item in details)
+    _log_error(request, "validation_error", "Некорректные данные запроса")
     return _error_response(
         code="validation_error",
         message="Некорректные данные запроса",
@@ -138,6 +144,7 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
         code = "empty_dataset"
     else:
         code = "invalid_data"
+    _log_error(request, code, message)
     return _error_response(
         code=code,
         message=message,
@@ -148,6 +155,7 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
 
 @app.exception_handler(TypeError)
 async def type_error_handler(request: Request, exc: TypeError) -> JSONResponse:
+    _log_error(request, "invalid_data", str(exc))
     return _error_response(
         code="invalid_data",
         message=str(exc),
@@ -159,23 +167,21 @@ async def type_error_handler(request: Request, exc: TypeError) -> JSONResponse:
 @app.exception_handler(RuntimeError)
 async def runtime_error_handler(request: Request, exc: RuntimeError) -> JSONResponse:
     message = str(exc)
-    if "не обучен" in message.lower():
-        return _error_response(
-            code="model_not_trained",
-            message=message,
-            status_code=400,
-            details={"exception": type(exc).__name__},
-        )
+    not_trained = "не обучен" in message.lower()
+    code = "model_not_trained" if not_trained else "internal_error"
+    status_code = 400 if not_trained else 500
+    _log_error(request, code, message)
     return _error_response(
-        code="internal_error",
-        message="Внутренняя ошибка сервера",
-        status_code=500,
+        code=code,
+        message=message if not_trained else "Внутренняя ошибка сервера",
+        status_code=status_code,
         details={"exception": type(exc).__name__},
     )
 
 
 @app.exception_handler(FileNotFoundError)
 async def file_not_found_handler(request: Request, exc: FileNotFoundError) -> JSONResponse:
+    _log_error(request, "not_found", str(exc) or "Файл не найден")
     return _error_response(
         code="not_found",
         message=str(exc) or "Файл не найден",
@@ -201,9 +207,17 @@ def root():
 
 @app.get("/health", response_model=HealthResponse)
 def health():
+    try:
+        dataset.load_dataframe()
+        dataset_loaded = True
+    except (OSError, ValueError) as e:
+        logger.warning("Датасет недоступен для /health: %s", e)
+        dataset_loaded = False
+
     return HealthResponse(
         status="ok",
         model_loaded=load_model() is not None,
+        dataset_loaded=dataset_loaded,
     )
 
 
@@ -321,12 +335,16 @@ def predict_endpoint(payload: FeatureVectorChurn | list[FeatureVectorChurn]):
     """
     Предсказание оттока клиентов.
     """
+    count = len(payload) if isinstance(payload, list) else 1
+    logger.info("POST /predict: %d записей", count)
+
     if isinstance(payload, list):
         df = preprocessing.build_feature_matrix([c.model_dump() for c in payload])
         try:
             preds, probas = predict(df)
         except RuntimeError as e:
             raise APIError(status_code=400, detail=str(e), code="model_not_trained")
+        logger.info("POST /predict: получено %d предсказаний", len(preds))
         return [
             PredictionResponseChurn(churn=p, probability=round(pr, 4))
             for p, pr in zip(preds, probas)
@@ -336,6 +354,9 @@ def predict_endpoint(payload: FeatureVectorChurn | list[FeatureVectorChurn]):
         preds, probas = predict(df)
     except RuntimeError as e:
         raise APIError(status_code=400, detail=str(e), code="model_not_trained")
+    logger.info(
+        "POST /predict: churn=%s, probability=%.4f", preds[0], probas[0]
+    )
     return PredictionResponseChurn(churn=preds[0], probability=round(probas[0], 4))
 
 

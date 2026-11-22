@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
 
 from churn_fastapi.config import ALL_FEATURES, DATASET_PATH, TARGET_COLUMN
 from churn_fastapi.schemas import DatasetRowChurn
+
+logger = logging.getLogger("uvicorn.error.churn_fastapi.dataset")
 
 _cache: pd.DataFrame | None = None
 _cache_stamp: tuple[float, int] | None = None
@@ -30,6 +34,12 @@ def load_dataframe() -> pd.DataFrame:
         missing = [c for c in ALL_FEATURES + [TARGET_COLUMN] if c not in df.columns]
         if missing:
             raise ValueError(f"В датасете отсутствуют обязательные столбцы: {missing}")
+        logger.info(
+            "Датасет загружен из %s: %d строк, %d столбцов",
+            DATASET_PATH,
+            len(df),
+            len(df.columns),
+        )
         _cache = df
         _cache_stamp = stamp
 

@@ -211,11 +211,54 @@ curl "http://localhost:8000/model/metrics?model_type=random_forest&limit=3"
 качества. Старый `GET /metrics` по-прежнему возвращает только метрики текущей
 модели.
 
+## Мониторинг
+
+Сервис пишет логи в `uvicorn.error.churn_fastapi.*`:
+
+- `dataset` — загрузка `churn_dataset.csv` (путь, число строк и столбцов);
+- `model` — старт обучения, размеры train/test, итоговые метрики, сохранение
+  и загрузка модели;
+- `api` — вызовы `POST /predict` (число записей и результат), а также все
+  ошибки запросов с кодом, методом и путём;
+- `history` — повреждённая история обучений.
+
+`GET /health` возвращает состояние сервиса:
+
+```json
+{
+  "status": "ok",
+  "model_loaded": true,
+  "dataset_loaded": true
+}
+```
+
+`model_loaded` показывает, что модель доступна в памяти или на диске,
+`dataset_loaded` — что датасет читается. Ответ остаётся `200` даже если модель
+или датасет недоступны: детали видны в булевых полях и логах.
+
 ## Docker
+
+```bash
+docker build -t churn-fastapi .
+docker run --rm -p 8000:8000 churn-fastapi
+```
+
+Или через compose (том `./models` сохраняет обученную модель между запусками):
 
 ```bash
 docker compose up --build
 ```
+
+Проверка внутри контейнера:
+
+```bash
+curl http://localhost:8000/health
+curl -o /dev/null -w '%{http_code}\n' http://localhost:8000/docs
+```
+
+Compose использует healthcheck на базе `python` + `urllib.request`, поэтому
+`curl` в образе не нужен. Образ слушает `0.0.0.0:8000` и копирует `data/`
+внутрь на этапе сборки.
 
 ## Тесты
 
@@ -264,7 +307,9 @@ churn_fastapi/
     ├── test_preprocessing.py  # Тесты предобработки и разбиения
     ├── test_model.py          # Тесты обучения модели
     ├── test_errors.py         # Тесты формата ошибок
-    └── test_history.py        # Тесты истории обучений
+    ├── test_history.py        # Тесты истории обучений
+    ├── test_integration.py    # Синтетический CSV → train → status → predict
+    └── test_monitoring.py     # /health и логирование ключевых событий
 ```
 
 ## Хранение модели

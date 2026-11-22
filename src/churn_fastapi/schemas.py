@@ -151,6 +151,7 @@ class ModelStatusResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
+    dataset_loaded: bool
 
 
 class DatasetRowChurn(BaseModel):

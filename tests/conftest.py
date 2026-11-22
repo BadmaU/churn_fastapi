@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from churn_fastapi import dataset, history
+from churn_fastapi import dataset, history, model
 from churn_fastapi.config import ALL_FEATURES, TARGET_COLUMN
 from churn_fastapi.main import app
 
@@ -65,3 +65,12 @@ def synthetic_csv(tmp_path, monkeypatch, synthetic_df):
     dataset.clear_cache()
     yield path
     dataset.clear_cache()
+
+
+@pytest.fixture
+def isolated_model(tmp_path, monkeypatch):
+    monkeypatch.setattr(model, "MODEL_PATH", tmp_path / "churn_model.joblib")
+    monkeypatch.setattr(model, "MODEL_METADATA_PATH", tmp_path / "model_metadata.json")
+    model.reset_model()
+    yield
+    model.reset_model()
