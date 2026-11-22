@@ -89,6 +89,7 @@ curl -X POST http://localhost:8000/predict \
 | `POST` | `/model/train` | Обучить модель (`logreg` или `random_forest`), вернуть accuracy и f1 |
 | `POST` | `/train` | Алиас `/model/train` |
 | `GET` | `/model/status` | Обучена ли модель, тип и гиперпараметры, когда обучена, метрики |
+| `GET` | `/model/metrics` | Метрики последнего обучения, история запусков и лучший запуск |
 | `GET` | `/model/schema` | Список признаков churn, типы, группы и ограничения |
 | `POST` | `/predict` | Предсказание для одного клиента |
 | `POST` | `/predict/batch` | Пакетное предсказание |
@@ -174,6 +175,42 @@ curl -X POST http://localhost:8000/predict \
 `validation_error` — набор полей должен совпадать с `GET /model/schema`. Если модель ещё
 не обучена, ответ `400` с кодом `model_not_trained`.
 
+## Метрики и история обучений
+
+Каждый запуск `/model/train` добавляет запись в `models/training_history.json`:
+время (UTC), тип модели, гиперпараметры и метрики. История переживает перезапуск
+сервиса и хранит не более 100 последних запусков.
+
+```bash
+curl "http://localhost:8000/model/metrics?limit=5"
+curl "http://localhost:8000/model/metrics?model_type=random_forest&limit=3"
+```
+
+Ответ:
+
+```json
+{
+  "latest": {"trained_at": "...", "model_type": "random_forest", "hyperparameters": {}, "metrics": {"accuracy": 0.85, "f1": 0.84}},
+  "history": [
+    {"trained_at": "...", "model_type": "random_forest", "hyperparameters": {}, "metrics": {"accuracy": 0.85, "f1": 0.84}}
+  ],
+  "best": {"trained_at": "...", "model_type": "logreg", "hyperparameters": {}, "metrics": {"accuracy": 0.86, "f1": 0.86}},
+  "total": 7
+}
+```
+
+- `latest` — метрики последнего обучения;
+- `history` — последние `limit` записей в хронологическом порядке (`1..100`, по умолчанию 10);
+- `best` — лучший запуск по `f1` (при равенстве — по `accuracy`), считается по всей
+  выборке с учётом фильтра;
+- `total` — сколько всего записей подходит под фильтр.
+
+`model_type` отбирает только нужные конфигурации, поэтому `GET /model/metrics`
+можно использовать для сравнения `logreg` и `random_forest` с разными
+гиперпараметрами: `best` показывает лучшую комбинацию, а `history` — динамику
+качества. Старый `GET /metrics` по-прежнему возвращает только метрики текущей
+модели.
+
 ## Docker
 
 ```bash
@@ -203,14 +240,18 @@ churn_fastapi/
 │       ├── dataset.py         # Загрузка и предпросмотр датасета
 │       ├── preprocessing.py   # X/y, пропуски, числовые/категориальные, train/test
 │       ├── model.py           # train_churn_model, сохранение и загрузка модели
+│       ├── history.py         # История обучений в JSON
+│       ├── errors.py          # APIError и коды ошибок
 │       └── config.py          # Конфигурация и пути
-├── models/                    # churn_model.joblib + model_metadata.json (в gitignore)
+├── models/                    # churn_model.joblib, model_metadata.json, training_history.json (gitignore)
 └── tests/
     ├── conftest.py            # Фикстуры для тестов
     ├── test_api.py            # Тесты API
     ├── test_dataset.py        # Тесты загрузки и просмотра датасета
     ├── test_preprocessing.py  # Тесты предобработки и разбиения
-    └── test_model.py          # Тесты обучения модели
+    ├── test_model.py          # Тесты обучения модели
+    ├── test_errors.py         # Тесты формата ошибок
+    └── test_history.py        # Тесты истории обучений
 ```
 
 ## Хранение модели
@@ -221,6 +262,7 @@ churn_fastapi/
 |---|---|
 | `models/churn_model.joblib` | сам `Pipeline` через `joblib.dump` |
 | `models/model_metadata.json` | `trained_at`, метрики, список признаков, версия sklearn, размер датасета |
+| `models/training_history.json` | история запусков: время, тип модели, гиперпараметры и метрики |
 
 - `save_churn_model(pipeline, metadata)` — пишет оба файла и обновляет модель в памяти
 - `load_churn_model()` — читает модель с диска в глобальную переменную модуля `model.py`

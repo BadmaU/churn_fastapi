@@ -25,6 +25,7 @@ from churn_fastapi.config import (
     NUMERIC_FEATURES,
     TARGET_COLUMN,
 )
+from churn_fastapi.history import append_record
 from churn_fastapi.preprocessing import (
     DEFAULT_RANDOM_STATE,
     DEFAULT_TEST_SIZE,
@@ -206,6 +207,18 @@ def train(
     _model_pipeline = result.pipeline
     metadata = _build_metadata(result, df)
     save_churn_model(result.pipeline, metadata)
+    try:
+        append_record(
+            {
+                "trained_at": metadata["trained_at"],
+                "model": metadata["model"],
+                "model_type": metadata["model_type"],
+                "hyperparameters": metadata["hyperparameters"],
+                "metrics": metadata["metrics"],
+            }
+        )
+    except OSError as e:
+        logger.warning("Не удалось записать историю обучений: %s", e)
 
     return metadata
 

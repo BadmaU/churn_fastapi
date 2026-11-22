@@ -7,6 +7,7 @@ MODEL_DIR = BASE_DIR / "models"
 DATASET_PATH = DATA_DIR / "churn_dataset.csv"
 MODEL_PATH = MODEL_DIR / "churn_model.joblib"
 MODEL_METADATA_PATH = MODEL_DIR / "model_metadata.json"
+HISTORY_PATH = MODEL_DIR / "training_history.json"
 
 NUMERIC_FEATURES = [
     "monthly_fee",

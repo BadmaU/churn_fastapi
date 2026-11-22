@@ -85,6 +85,35 @@ class MetricsResponse(BaseModel):
     test_size: int
 
 
+class TrainingRunMetrics(BaseModel):
+    accuracy: float = Field(..., description="Accuracy на тестовой выборке")
+    f1: float = Field(..., description="F1 на тестовой выборке")
+    roc_auc: float | None = Field(None, description="ROC AUC на тестовой выборке")
+    precision: float | None = Field(None, description="Precision на тестовой выборке")
+    recall: float | None = Field(None, description="Recall на тестовой выборке")
+    train_size: int | None = Field(None, description="Размер train выборки")
+    test_size: int | None = Field(None, description="Размер test выборки")
+
+
+class TrainingRunRecord(BaseModel):
+    trained_at: str = Field(..., description="Время обучения (UTC, ISO 8601)")
+    model_type: str = Field(..., description="Тип модели: logreg или random_forest")
+    model: str | None = Field(None, description="Класс обученной модели")
+    hyperparameters: dict[str, Any] = Field(
+        default_factory=dict, description="Гиперпараметры запуска"
+    )
+    metrics: TrainingRunMetrics = Field(..., description="Метрики запуска")
+
+
+class TrainingMetricsResponse(BaseModel):
+    latest: TrainingRunRecord | None = Field(None, description="Метрики последнего обучения")
+    history: list[TrainingRunRecord] = Field(
+        default_factory=list, description="Последние записи в хронологическом порядке"
+    )
+    best: TrainingRunRecord | None = Field(None, description="Лучший запуск по f1")
+    total: int = Field(0, description="Всего записей с учётом фильтра по типу модели")
+
+
 class ModelTrainResponse(BaseModel):
     message: str
     model: str = Field(..., description="Название обученной модели")

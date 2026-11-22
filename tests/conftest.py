@@ -1,7 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from churn_fastapi import history
 from churn_fastapi.main import app
+
+
+@pytest.fixture(autouse=True)
+def isolated_training_history(tmp_path, monkeypatch):
+    monkeypatch.setattr(history, "HISTORY_PATH", tmp_path / "training_history.json")
 
 
 @pytest.fixture

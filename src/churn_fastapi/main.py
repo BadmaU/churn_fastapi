@@ -14,6 +14,7 @@ from churn_fastapi.config import (
     TARGET_COLUMN,
 )
 from churn_fastapi.errors import APIError, code_for_status
+from churn_fastapi.history import get_training_metrics
 from churn_fastapi.model import (
     InvalidDatasetError,
     get_metadata,
@@ -43,6 +44,7 @@ from churn_fastapi.schemas import (
     PredictionResponseChurn,
     SplitInfoResponse,
     TrainingConfigChurn,
+    TrainingMetricsResponse,
 )
 
 logger = logging.getLogger("uvicorn.error.churn_fastapi.api")
@@ -366,6 +368,16 @@ def metrics():
             code="metrics_not_available",
         )
     return MetricsResponse(**m)
+
+
+@app.get("/model/metrics", response_model=TrainingMetricsResponse)
+def model_metrics(
+    limit: int = Query(10, ge=1, le=100, description="Сколько последних обучений вернуть"),
+    model_type: str | None = Query(None, description="Фильтр по типу модели"),
+):
+    return TrainingMetricsResponse(
+        **get_training_metrics(limit=limit, model_type=model_type)
+    )
 
 
 @app.post("/upload")
