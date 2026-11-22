@@ -4,7 +4,7 @@ import logging
 
 import pandas as pd
 
-from churn_fastapi.config import ALL_FEATURES, DATASET_PATH, TARGET_COLUMN
+from churn_fastapi.core.config import ALL_FEATURES, DATASET_PATH, TARGET_COLUMN
 from churn_fastapi.schemas import DatasetRowChurn
 
 logger = logging.getLogger("uvicorn.error.churn_fastapi.dataset")

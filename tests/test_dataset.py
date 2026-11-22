@@ -1,5 +1,5 @@
-from churn_fastapi import dataset
-from churn_fastapi.config import ALL_FEATURES, TARGET_COLUMN
+from churn_fastapi.core.config import ALL_FEATURES, TARGET_COLUMN
+from churn_fastapi.ml import dataset
 from churn_fastapi.schemas import DatasetRowChurn
 
 

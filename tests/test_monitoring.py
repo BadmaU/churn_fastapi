@@ -1,6 +1,6 @@
 import logging
 
-from churn_fastapi import dataset
+from churn_fastapi.ml import dataset
 
 
 def test_health_reports_dataset_and_model(client, synthetic_csv, isolated_model):

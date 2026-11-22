@@ -3,8 +3,8 @@ import pytest
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
-from churn_fastapi import dataset, model
-from churn_fastapi.config import ALL_FEATURES, MODEL_PATH, TARGET_COLUMN
+from churn_fastapi.core.config import ALL_FEATURES, MODEL_PATH, TARGET_COLUMN
+from churn_fastapi.ml import dataset, model
 
 HEADER = ",".join(ALL_FEATURES + [TARGET_COLUMN]) + "\n"
 

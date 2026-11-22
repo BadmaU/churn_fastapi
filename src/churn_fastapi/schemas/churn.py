@@ -54,10 +54,6 @@ class FeatureVectorChurn(BaseModel):
     autopay_enabled: int = Field(..., ge=0, le=1, description="Автосписание: 0 или 1")
 
 
-# Для обратной совместимости
-ClientFeatures = FeatureVectorChurn
-
-
 class PredictionResponse(BaseModel):
     churn: int = Field(..., description="Предсказание: 1 — ушёл, 0 — остался")
     probability: float = Field(..., description="Вероятность оттока")

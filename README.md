@@ -23,12 +23,39 @@ FastAPI-сервис для предсказания оттока клиенто
 | `autopay_enabled` | Автосписание (0 или 1) | int |
 | `churn` | Целевой признак (0/1) | int |
 
+### Формат `data/churn_dataset.csv`
+
+CSV с заголовком из 10 колонок (9 признаков + цель), без индексной колонки,
+кодировка UTF-8, разделитель `,`. В репозитории лежит 2000 строк.
+
+```csv
+monthly_fee,usage_hours,support_requests,account_age_months,failed_payments,region,device_type,payment_method,autopay_enabled,churn
+19.99,15.0,2,6,0,europe,desktop,card,1,0
+74.50,3.2,5,1,2,asia,mobile,paypal,0,1
+```
+
+Все 9 признаков обязательны и должны называться точно так же, как в заголовке.
+Пропуски в числовых колонках допустимы — их заполняет `SimpleImputer`
+в `ml/preprocessing.py`. Целевая колонка `churn` нужна только для обучения;
+при `/predict` её передавать не нужно. Загрузить другой CSV можно через
+`POST /upload`.
+
 ## Быстрый старт
 
 ### Установка
 
+С `uv`:
+
 ```bash
 uv sync
+```
+
+Или с обычным virtualenv:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
 ```
 
 ### Запуск сервера
@@ -55,6 +82,21 @@ curl -X POST http://localhost:8000/model/train \
 
 `model_type`: `logreg` (по умолчанию) или `random_forest`.
 
+Пример ответа:
+
+```json
+{
+  "message": "Модель обучена успешно",
+  "model": "LogisticRegression",
+  "model_type": "logreg",
+  "hyperparameters": {},
+  "accuracy": 0.7875,
+  "f1": 0.0449,
+  "train_size": 1600,
+  "test_size": 400
+}
+```
+
 ### Схема признаков
 
 ```bash
@@ -80,6 +122,16 @@ curl -X POST http://localhost:8000/predict \
     "autopay_enabled": 1
   }'
 ```
+
+Ответ (один клиент):
+
+```json
+{"churn": 0, "probability": 0.1234}
+```
+
+Тело запроса может быть списком объектов — тогда ответ будет списком таких же
+прогнозов. `/predict/batch` принимает `{"clients": [...]}` и возвращает
+`{"predictions": [...]}`.
 
 ## API эндпоинты
 
@@ -290,15 +342,21 @@ churn_fastapi/
 ├── docker-compose.yml
 ├── src/
 │   └── churn_fastapi/
-│       ├── __init__.py
-│       ├── main.py            # FastAPI приложение и эндпоинты
-│       ├── schemas.py         # Pydantic-модели запросов/ответов
-│       ├── dataset.py         # Загрузка и предпросмотр датасета
-│       ├── preprocessing.py   # X/y, пропуски, числовые/категориальные, train/test
-│       ├── model.py           # train_churn_model, сохранение и загрузка модели
-│       ├── history.py         # История обучений в JSON
-│       ├── errors.py          # APIError и коды ошибок
-│       └── config.py          # Конфигурация и пути
+│       ├── main.py            # Создание приложения, lifespan, запуск uvicorn
+│       ├── api/               # HTTP-слой: роуты и обработчики ошибок
+│       │   ├── routes.py
+│       │   └── errors.py
+│       ├── ml/                # Churn pipeline: данные, признаки, модель, история
+│       │   ├── dataset.py
+│       │   ├── preprocessing.py
+│       │   ├── model.py
+│       │   └── history.py
+│       ├── schemas/           # Pydantic-модели запросов/ответов
+│       │   ├── churn.py
+│       │   └── __init__.py
+│       └── core/              # Конфигурация и общие типы ошибок
+│           ├── config.py
+│           └── errors.py
 ├── models/                    # churn_model.joblib, model_metadata.json, training_history.json (gitignore)
 └── tests/
     ├── conftest.py            # Фикстуры для тестов
@@ -323,7 +381,7 @@ churn_fastapi/
 | `models/training_history.json` | история запусков: время, тип модели, гиперпараметры и метрики |
 
 - `save_churn_model(pipeline, metadata)` — пишет оба файла и обновляет модель в памяти
-- `load_churn_model()` — читает модель с диска в глобальную переменную модуля `model.py`
+- `load_churn_model()` — читает модель с диска в глобальную переменную модуля `ml/model.py`
 - `reset_model()` — сбрасывает состояние (вызывается в `lifespan` при остановке)
 
 `lifespan` при старте вызывает `load_churn_model()`, поэтому после перезапуска

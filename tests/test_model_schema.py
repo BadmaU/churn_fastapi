@@ -1,5 +1,10 @@
-from churn_fastapi import model
-from churn_fastapi.config import ALL_FEATURES, CATEGORICAL_FEATURES, NUMERIC_FEATURES, TARGET_COLUMN
+from churn_fastapi.core.config import (
+    ALL_FEATURES,
+    CATEGORICAL_FEATURES,
+    NUMERIC_FEATURES,
+    TARGET_COLUMN,
+)
+from churn_fastapi.ml import model
 
 
 def test_model_schema_lists_features_in_training_order(client):

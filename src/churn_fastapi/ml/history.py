@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from churn_fastapi.config import HISTORY_PATH
+from churn_fastapi.core.config import HISTORY_PATH
 
 logger = logging.getLogger("uvicorn.error.churn_fastapi.history")
 

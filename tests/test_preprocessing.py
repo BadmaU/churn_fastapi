@@ -1,8 +1,13 @@
 import pandas as pd
 import pytest
 
-from churn_fastapi import dataset, preprocessing
-from churn_fastapi.config import ALL_FEATURES, CATEGORICAL_FEATURES, NUMERIC_FEATURES, TARGET_COLUMN
+from churn_fastapi.core.config import (
+    ALL_FEATURES,
+    CATEGORICAL_FEATURES,
+    NUMERIC_FEATURES,
+    TARGET_COLUMN,
+)
+from churn_fastapi.ml import dataset, preprocessing
 
 
 def test_column_groups_cover_all_features():

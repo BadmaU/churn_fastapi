@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from churn_fastapi.config import (
+from churn_fastapi.core.config import (
     ALL_FEATURES,
     CATEGORICAL_FEATURES,
     NUMERIC_FEATURES,
@@ -53,7 +53,7 @@ def describe_missing(df: pd.DataFrame) -> dict[str, int]:
 
 
 def split_xy(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
-    get_column_groups()  # валидация групп признаков
+    get_column_groups()
     X = df[ALL_FEATURES].copy()
     y = df[TARGET_COLUMN].copy()
     y.name = TARGET_COLUMN

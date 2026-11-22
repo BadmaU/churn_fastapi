@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from churn_fastapi import history, model
+from churn_fastapi.ml import history, model
 
 
 @pytest.fixture(autouse=True)

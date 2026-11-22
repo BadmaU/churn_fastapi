@@ -37,7 +37,7 @@ def test_batch_predict(client, sample_client):
 
 
 def test_predict_without_model(client, sample_client, monkeypatch, tmp_path):
-    from churn_fastapi import model as m
+    from churn_fastapi.ml import model as m
 
     monkeypatch.setattr(m, "MODEL_PATH", tmp_path / "absent.joblib")
     m.reset_model()

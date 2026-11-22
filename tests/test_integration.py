@@ -1,5 +1,5 @@
-from churn_fastapi import dataset, model, preprocessing
-from churn_fastapi.config import ALL_FEATURES, TARGET_COLUMN
+from churn_fastapi.core.config import ALL_FEATURES, TARGET_COLUMN
+from churn_fastapi.ml import dataset, model, preprocessing
 
 
 class TestSyntheticPipelineWithoutFastAPI:

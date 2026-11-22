@@ -4,9 +4,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from churn_fastapi import dataset, history, model
-from churn_fastapi.config import ALL_FEATURES, TARGET_COLUMN
+from churn_fastapi.core.config import ALL_FEATURES, TARGET_COLUMN
 from churn_fastapi.main import app
+from churn_fastapi.ml import dataset, history, model
 
 
 @pytest.fixture(autouse=True)

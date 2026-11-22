@@ -4,8 +4,8 @@ import pytest
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 
-from churn_fastapi import dataset, model
-from churn_fastapi.config import MODEL_METADATA_PATH
+from churn_fastapi.core.config import MODEL_METADATA_PATH
+from churn_fastapi.ml import dataset, model
 from churn_fastapi.schemas import TrainingConfigChurn
 
 
@@ -83,7 +83,7 @@ class TestTrainWithConfig:
     def test_metadata_contains_model_type_and_params(self, clean_df):
         config = TrainingConfigChurn(model_type="random_forest")
         result = model.train_churn_model(clean_df, config=config)
-        from churn_fastapi.model import _build_metadata
+        from churn_fastapi.ml.model import _build_metadata
 
         metadata = _build_metadata(result, clean_df)
         assert metadata["model"] == "RandomForestClassifier"

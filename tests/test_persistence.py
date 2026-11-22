@@ -3,8 +3,8 @@ import json
 import pytest
 from sklearn.pipeline import Pipeline
 
-from churn_fastapi import model
-from churn_fastapi.config import ALL_FEATURES, MODEL_METADATA_PATH, MODEL_PATH
+from churn_fastapi.core.config import ALL_FEATURES, MODEL_METADATA_PATH, MODEL_PATH
+from churn_fastapi.ml import model
 
 
 @pytest.fixture(autouse=True)

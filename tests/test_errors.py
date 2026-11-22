@@ -2,8 +2,10 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from churn_fastapi import dataset, main, model
-from churn_fastapi.config import ALL_FEATURES, TARGET_COLUMN
+from churn_fastapi import main
+from churn_fastapi.api import routes
+from churn_fastapi.core.config import ALL_FEATURES, TARGET_COLUMN
+from churn_fastapi.ml import dataset, model
 
 ERROR_FIELDS = {"code", "message", "details"}
 
@@ -29,7 +31,7 @@ class TestErrorFormat:
         def boom():
             raise Exception("секретная внутренняя ошибка")
 
-        monkeypatch.setattr(main, "load_metrics", boom)
+        monkeypatch.setattr(routes, "load_metrics", boom)
         with TestClient(main.app, raise_server_exceptions=False) as safe_client:
             response = safe_client.get("/metrics")
 
@@ -80,7 +82,7 @@ class TestHandledCases:
         def broken(_records):
             raise ValueError("Отсутствуют обязательные признаки: ['region']")
 
-        monkeypatch.setattr(main.preprocessing, "build_feature_matrix", broken)
+        monkeypatch.setattr(routes.preprocessing, "build_feature_matrix", broken)
 
         response = client.post("/predict", json=sample_client)
 
@@ -98,7 +100,7 @@ class TestHandledCases:
         [("/no-such-endpoint", "not_found"), ("/metrics", "metrics_not_available")],
     )
     def test_http_errors(self, client, monkeypatch, path, code):
-        monkeypatch.setattr(main, "load_metrics", lambda: None)
+        monkeypatch.setattr(routes, "load_metrics", lambda: None)
 
         response = client.get(path)
 

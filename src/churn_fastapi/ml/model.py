@@ -14,8 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 from sklearn.pipeline import Pipeline
 
-from churn_fastapi import dataset
-from churn_fastapi.config import (
+from churn_fastapi.core.config import (
     ALL_FEATURES,
     CATEGORICAL_FEATURES,
     DATASET_PATH,
@@ -25,8 +24,9 @@ from churn_fastapi.config import (
     NUMERIC_FEATURES,
     TARGET_COLUMN,
 )
-from churn_fastapi.history import append_record
-from churn_fastapi.preprocessing import (
+from churn_fastapi.ml import dataset
+from churn_fastapi.ml.history import append_record
+from churn_fastapi.ml.preprocessing import (
     DEFAULT_RANDOM_STATE,
     DEFAULT_TEST_SIZE,
     DataSplit,
