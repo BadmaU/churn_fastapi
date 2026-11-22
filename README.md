@@ -219,9 +219,22 @@ docker compose up --build
 
 ## Тесты
 
+pytest настроен в `pyproject.toml` (`testpaths = ["tests"]`), запуск:
+
 ```bash
 uv run pytest -v
 ```
+
+- юнит-тесты подготовки данных и обучения без FastAPI: `test_preprocessing.py`,
+  `test_model.py`, `test_training_config.py`;
+- интеграционный сценарий `test_integration.py`: синтетический CSV (seed 42, 60 строк)
+  → `/model/train` → `/model/status` → `/predict`, плюс проверка воспроизводимости метрик;
+- обработка ошибок, включая предсказание без обученной модели: `test_errors.py`,
+  `test_api.py`, `test_integration.py`.
+
+Фикстуры в `conftest.py` подменяют датасет, модель и историю обучений файлами
+во временной директории, поэтому тесты повторяемы и не меняют реальные файлы
+в `data/` и `models/`.
 
 ## Структура проекта
 

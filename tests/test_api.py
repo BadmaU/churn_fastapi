@@ -36,19 +36,15 @@ def test_batch_predict(client, sample_client):
     assert len(resp.json()["predictions"]) == 2
 
 
-def test_predict_without_model(client, sample_client):
+def test_predict_without_model(client, sample_client, monkeypatch, tmp_path):
     from churn_fastapi import model as m
 
-    m._model_pipeline = None
-    import os
-
-    from churn_fastapi.config import MODEL_PATH
-
-    if MODEL_PATH.exists():
-        os.remove(MODEL_PATH)
+    monkeypatch.setattr(m, "MODEL_PATH", tmp_path / "absent.joblib")
+    m.reset_model()
 
     resp = client.post("/predict", json=sample_client)
     assert resp.status_code == 400
+    assert resp.json()["code"] == "model_not_trained"
 
 
 def test_dataset_info(client):
