@@ -2,7 +2,10 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Query, UploadFile
+from fastapi import FastAPI, Query, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from churn_fastapi import dataset, preprocessing
 from churn_fastapi.config import (
@@ -10,6 +13,7 @@ from churn_fastapi.config import (
     DATASET_PATH,
     TARGET_COLUMN,
 )
+from churn_fastapi.errors import APIError, code_for_status
 from churn_fastapi.model import (
     InvalidDatasetError,
     get_metadata,
@@ -28,6 +32,7 @@ from churn_fastapi.schemas import (
     ClientFeatures,
     DatasetInfoResponse,
     DatasetPreviewResponse,
+    ErrorResponse,
     FeatureSpecChurn,
     FeatureVectorChurn,
     HealthResponse,
@@ -71,6 +76,122 @@ app = FastAPI(
 )
 
 
+def _error_response(
+    code: str,
+    message: str,
+    status_code: int,
+    details: dict | list | None = None,
+    legacy_detail: str | None = None,
+) -> JSONResponse:
+    payload = ErrorResponse(
+        code=code,
+        message=message,
+        details=details,
+        detail=message if legacy_detail is None else legacy_detail,
+    )
+    return JSONResponse(status_code=status_code, content=payload.model_dump(mode="json"))
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    code = getattr(exc, "code", None) or code_for_status(exc.status_code)
+    return _error_response(
+        code=code,
+        message=str(exc.detail),
+        status_code=exc.status_code,
+        details={"status_code": exc.status_code},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    details = []
+    for error in exc.errors():
+        location = [str(part) for part in error.get("loc", ()) if part != "body"]
+        details.append(
+            {
+                "field": ".".join(location) or "body",
+                "message": error.get("msg", ""),
+                "type": error.get("type", ""),
+            }
+        )
+    legacy_detail = "; ".join(f"{item['field']}: {item['message']}" for item in details)
+    return _error_response(
+        code="validation_error",
+        message="Некорректные данные запроса",
+        status_code=422,
+        details=details,
+        legacy_detail=legacy_detail,
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+    message = str(exc)
+    if "Отсутствуют обязательные признаки" in message:
+        code = "invalid_features"
+    elif "пуст" in message.lower():
+        code = "empty_dataset"
+    else:
+        code = "invalid_data"
+    return _error_response(
+        code=code,
+        message=message,
+        status_code=400,
+        details={"exception": type(exc).__name__},
+    )
+
+
+@app.exception_handler(TypeError)
+async def type_error_handler(request: Request, exc: TypeError) -> JSONResponse:
+    return _error_response(
+        code="invalid_data",
+        message=str(exc),
+        status_code=400,
+        details={"exception": type(exc).__name__},
+    )
+
+
+@app.exception_handler(RuntimeError)
+async def runtime_error_handler(request: Request, exc: RuntimeError) -> JSONResponse:
+    message = str(exc)
+    if "не обучен" in message.lower():
+        return _error_response(
+            code="model_not_trained",
+            message=message,
+            status_code=400,
+            details={"exception": type(exc).__name__},
+        )
+    return _error_response(
+        code="internal_error",
+        message="Внутренняя ошибка сервера",
+        status_code=500,
+        details={"exception": type(exc).__name__},
+    )
+
+
+@app.exception_handler(FileNotFoundError)
+async def file_not_found_handler(request: Request, exc: FileNotFoundError) -> JSONResponse:
+    return _error_response(
+        code="not_found",
+        message=str(exc) or "Файл не найден",
+        status_code=404,
+        details={"exception": type(exc).__name__},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Необработанная ошибка при обработке запроса", exc_info=exc)
+    return _error_response(
+        code="internal_error",
+        message="Внутренняя ошибка сервера",
+        status_code=500,
+    )
+
+
 @app.get("/")
 def root():
     return {"message": "ml churn service is running"}
@@ -88,12 +209,21 @@ def health():
 def train_churn_model_endpoint(config: TrainingConfigChurn | None = None):
     try:
         metadata = train(config=config)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Файл датасета не найден")
+    except FileNotFoundError as e:
+        raise APIError(
+            status_code=404,
+            detail=str(e) or "Файл датасета не найден",
+            code="dataset_not_found",
+        )
     except InvalidDatasetError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        code = "empty_dataset" if "пуст" in str(e).lower() else "invalid_dataset"
+        raise APIError(status_code=400, detail=str(e), code=code)
     except (ValueError, TypeError) as e:
-        raise HTTPException(status_code=400, detail=f"Не удалось обучить модель: {e}")
+        raise APIError(
+            status_code=400,
+            detail=f"Не удалось обучить модель: {e}",
+            code="invalid_model_config",
+        )
     metrics = metadata["metrics"]
     return ModelTrainResponse(
         message="Модель обучена успешно",
@@ -194,7 +324,7 @@ def predict_endpoint(payload: FeatureVectorChurn | list[FeatureVectorChurn]):
         try:
             preds, probas = predict(df)
         except RuntimeError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise APIError(status_code=400, detail=str(e), code="model_not_trained")
         return [
             PredictionResponseChurn(churn=p, probability=round(pr, 4))
             for p, pr in zip(preds, probas)
@@ -203,7 +333,7 @@ def predict_endpoint(payload: FeatureVectorChurn | list[FeatureVectorChurn]):
     try:
         preds, probas = predict(df)
     except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise APIError(status_code=400, detail=str(e), code="model_not_trained")
     return PredictionResponseChurn(churn=preds[0], probability=round(probas[0], 4))
 
 
@@ -218,7 +348,7 @@ def predict_batch(request: BatchPredictionRequest):
     try:
         preds, probas = predict(df)
     except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise APIError(status_code=400, detail=str(e), code="model_not_trained")
     results = [
         PredictionResponseChurn(churn=p, probability=round(pr, 4))
         for p, pr in zip(preds, probas)
@@ -230,14 +360,18 @@ def predict_batch(request: BatchPredictionRequest):
 def metrics():
     m = load_metrics()
     if m is None:
-        raise HTTPException(status_code=404, detail="Метрики отсутствуют. Сначала обучите модель")
+        raise APIError(
+            status_code=404,
+            detail="Метрики отсутствуют. Сначала обучите модель",
+            code="metrics_not_available",
+        )
     return MetricsResponse(**m)
 
 
 @app.post("/upload")
 async def upload_dataset(file: UploadFile):
     if not file.filename or not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Требуется CSV-файл")
+        raise APIError(status_code=400, detail="Требуется CSV-файл", code="invalid_file")
     content = await file.read()
     DATASET_PATH.write_bytes(content)
     dataset.clear_cache()
@@ -248,9 +382,9 @@ def _load_dataset_df():
     try:
         return dataset.load_dataframe()
     except dataset.DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail="Датасет не найден")
+        raise APIError(status_code=404, detail="Датасет не найден", code="dataset_not_found")
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise APIError(status_code=422, detail=str(e), code="validation_error")
 
 
 @app.get("/dataset/info", response_model=DatasetInfoResponse)
@@ -306,7 +440,7 @@ def dataset_split_info(
             df, test_size=test_size, random_state=random_state, stratify=stratify
         )
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise APIError(status_code=422, detail=str(e), code="validation_error")
     return SplitInfoResponse(
         **preprocessing.summarize_split(
             split,

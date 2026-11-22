@@ -1,6 +1,15 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ErrorResponse(BaseModel):
+    code: str = Field(..., description="Машинночитаемый код ошибки")
+    message: str = Field(..., description="Человекочитаемое описание ошибки")
+    details: dict[str, Any] | list[dict[str, Any]] | None = Field(
+        None, description="Дополнительные сведения, например ошибки валидации"
+    )
+    detail: str | None = Field(None, description="Обратная совместимость: дублирует message")
 
 
 class TrainingConfigChurn(BaseModel):
@@ -32,6 +41,8 @@ class ModelSchemaResponse(BaseModel):
 
 
 class FeatureVectorChurn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     monthly_fee: float = Field(..., ge=0, description="Ежемесячная стоимость тарифа")
     usage_hours: float = Field(..., ge=0, description="Часы использования за месяц")
     support_requests: int = Field(..., ge=0, description="Обращения в техподдержку")

@@ -99,6 +99,81 @@ curl -X POST http://localhost:8000/predict \
 | `GET` | `/dataset/preview?limit=10` | Первые N строк датасета в JSON |
 | `GET` | `/dataset/split-info` | Размеры train/test и распределение `churn` в выборках |
 
+## Обработка ошибок
+
+Все ошибки возвращаются в едином формате — без трассировок стека в ответе:
+
+```json
+{
+  "code": "validation_error",
+  "message": "Некорректные данные запроса",
+  "details": [
+    {
+      "field": "monthly_fee",
+      "message": "Input should be a valid number",
+      "type": "float_parsing"
+    }
+  ],
+  "detail": "monthly_fee: Input should be a valid number"
+}
+```
+
+- `code` — машинночитаемый код: `validation_error`, `invalid_features`, `empty_dataset`,
+  `model_not_trained`, `invalid_model_config`, `dataset_not_found`, `not_found`, `internal_error`;
+- `message` — понятное описание ошибки;
+- `details` — детали (список ошибок валидации или контекст);
+- `detail` — дубль `message` для обратной совместимости со старыми клиентами.
+
+### Пример ошибки `/model/train`
+
+```bash
+curl -X POST http://localhost:8000/model/train \
+  -H "Content-Type: application/json" \
+  -d '{"model_type": "unknown"}'
+```
+
+```json
+{
+  "code": "invalid_model_config",
+  "message": "Не удалось обучить модель: Неизвестный тип модели: unknown. Доступные типы: logreg, random_forest",
+  "details": {"status_code": 400},
+  "detail": "Не удалось обучить модель: ..."
+}
+```
+
+Пустой датасет даёт `400` с кодом `empty_dataset`, отсутствие файла датасета — `404` с `dataset_not_found`.
+
+### Пример ошибки `/predict`
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "monthly_fee": "abc",
+    "usage_hours": 15.0,
+    "support_requests": 2,
+    "account_age_months": 6,
+    "failed_payments": 0,
+    "region": "europe",
+    "device_type": "desktop",
+    "payment_method": "card",
+    "autopay_enabled": 1
+  }'
+```
+
+```json
+{
+  "code": "validation_error",
+  "message": "Некорректные данные запроса",
+  "details": [{"field": "monthly_fee", "message": "Input should be a valid number", "type": "float_parsing"}],
+  "detail": "monthly_fee: Input should be a valid number"
+}
+```
+
+Неверное количество признаков (недостающий или лишний) тоже даёт `422` с кодом
+`validation_error` — набор полей должен совпадать с `GET /model/schema`. Если модель ещё
+не обучена, ответ `400` с кодом `model_not_trained`.
+
 ## Docker
 
 ```bash
